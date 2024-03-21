@@ -4,6 +4,7 @@ const { registerRoute } = require('workbox-routing');
 const { CacheableResponsePlugin } = require('workbox-cacheable-response');
 const { ExpirationPlugin } = require('workbox-expiration');
 const { precacheAndRoute } = require('workbox-precaching/precacheAndRoute');
+const { StaleWhileRevalidate } = require('workbox-strategies');
 
 precacheAndRoute(self.__WB_MANIFEST);
 
@@ -24,7 +25,25 @@ warmStrategyCache({
   strategy: pageCache,
 });
 
+// Check to see if the request is a navigation to a new page
 registerRoute(({ request }) => request.mode === 'navigate', pageCache);
 
-// TODO: Implement asset caching
-registerRoute();
+// Implemented asset caching
+registerRoute(
+  // Check to see if the request's destination is style for stylesheets, script for JavaScript, or worker for web worker
+  ({ request }) => ['style', 'script', 'worker'].includes(request.destination),
+  //StaleWhileRevalidate strategy always sends a request to the network even after cache hit and uses response to refresh the cache
+  new StaleWhileRevalidate({
+    cacheName: 'asset-cache',
+    plugins: [
+      //  cache any requests with response 0 or 200.
+      new CacheableResponsePlugin({
+        statuses: [0, 200],
+      }),
+      // cache for 30 days
+      new ExpirationPlugin({
+        maxAgeSeconds: 30 * 24 * 60 * 60,
+      }),
+    ],
+  })
+);
